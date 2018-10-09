@@ -461,7 +461,7 @@ def find_yfactors(dic):
     return (factor_r, factor_i)
 
 
-def _getdataarray(dic):
+def _getdataarray(dic, show_all_data=False):
     '''
     Main function for data array parsing, input is the
     raw dictionary from _readrawdic
@@ -491,19 +491,23 @@ def _getdataarray(dic):
                     idatalist.append(data)
                 else:
                     rdatalist.append(data)
-            if len(rdatalist) > 1:
-                warn("NTUPLES: multiple real arrays, returning first one only")
-            if len(idatalist) > 1:
-                warn("NTUPLES: multiple imaginary arrays, \
-                     returning first one only")
-            if rdatalist:
-                if idatalist:
-                    data = [rdatalist[0], idatalist[0]]
-                else:
-                    data = rdatalist[0]
+
+            if show_all_data:
+                data = { 'real': rdatalist, 'imaginary': idatalist }
             else:
-                if idatalist:
-                    data = [None, idatalist[0]]
+                if len(rdatalist) > 1:
+                    warn("NTUPLES: multiple real arrays, returning first one only")
+                if len(idatalist) > 1:
+                    warn("NTUPLES: multiple imaginary arrays, \
+                         returning first one only")
+                if rdatalist:
+                    if idatalist:
+                        data = [rdatalist[0], idatalist[0]]
+                    else:
+                        data = rdatalist[0]
+                else:
+                    if idatalist:
+                        data = [None, idatalist[0]]
 
     if data is None:  # XYDATA
         try:
@@ -526,6 +530,11 @@ def _getdataarray(dic):
         yfactor_r, yfactor_i = find_yfactors(dic)
         if yfactor_r is None or yfactor_r is None:
             warn("NTUPLES: YFACTORs not applied, parsing failed")
+        elif show_all_data:
+            for i, _ in enumerate(data['real']):
+                data['real'][i] = data['real'][i] * yfactor_r
+            for i, _ in enumerate(data['imaginary']):
+                data['imaginary'][i] = data['imaginary'][i] * yfactor_i
         else:
             data[0] = data[0] * yfactor_r
             data[1] = data[1] * yfactor_i
@@ -541,7 +550,7 @@ def _getdataarray(dic):
     return data
 
 
-def read(filename):
+def read(filename, show_all_data=False):
     """
     Read JCAMP-DX file
 
@@ -574,6 +583,16 @@ def read(filename):
     # and go with first that has proper data:
     data = None
     correctdic = None
+
+    # find and parse NMR data array from raw dic
+    data = _getdataarray(dic, show_all_data)
+
+    # remove data tables from dic
+    try:
+        del dic["XYDATA"]
+    except KeyError:
+        pass
+    
     try:
         subdiclist = dic["_datatype_NMRSPECTRUM"]
         for subdic in subdiclist:
