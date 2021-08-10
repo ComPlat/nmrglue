@@ -199,7 +199,7 @@ def _detect_format(dataline):
     firstvalue_re = re.compile(
         r"(\s)*([+-]?\d+\.?\d*|[+-]?\.\d+)([eE][+-]?\d+)?(\s)*")
 
-    xy_re = re.compile('^[0-9\.]+, [0-9\.]+$')
+    xy_re = re.compile('^[0-9\.]+, [0-9\.]+')
 
     index = firstvalue_re.match(dataline).end()
     if index is None:
@@ -406,10 +406,13 @@ def _parse_xy_xy(datalines):
     for dataline in datalines:
         if not dataline:
             continue
-        x, y = dataline.split(', ')
-        pts.append([float(x), float(y)])
+        xy_re = re.compile('[^ ][0-9\.]+, [0-9\.]+')
+        group_data = re.findall(xy_re, dataline)
+        for data in group_data:
+            x, y = data.split(', ')
+            pts.append([float(x), float(y)])
 
-    return pts
+    return [pts]
 
 
 def _parse_data(datastring):
@@ -545,8 +548,16 @@ def _getdataarray(dic, show_all_data=False):
         except KeyError:
             warn("XYDATA not found ")
 
-    if data is None:
-        return None
+    if data is None:  # PEAK TABLE
+        try:
+            valuelist = dic["PEAKTABLE"]
+            if len(valuelist) == 1:
+                data, datatype = _parse_data(valuelist[0])
+            else:
+                warn("Multiple PEAKTABLE arrays in JCAMP-DX file, \
+                     returning first one only")
+        except KeyError:
+            warn("PEAKTABLE not found ")
 
     # apply YFACTOR to data if available
     if is_ntuples:
@@ -615,7 +626,7 @@ def read(filename, show_all_data=False, read_err=None):
         del dic["XYDATA"]
     except KeyError:
         pass
-    
+
     try:
         subdiclist = dic["_datatype_NMRSPECTRUM"]
         for subdic in subdiclist:
