@@ -623,6 +623,12 @@ def read(filename, show_all_data=False, read_err=None):
     data = None
     correctdic = None
 
+    # remove data tables from dic
+    try:
+        dic['XYDATA_OLD'] = dic["XYDATA"]
+        del dic["XYDATA"]
+    except KeyError:
+        pass
     try:
         subdiclist = dic["_datatype_NMRSPECTRUM"]
         for subdic in subdiclist:
