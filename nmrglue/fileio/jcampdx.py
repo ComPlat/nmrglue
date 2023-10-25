@@ -37,7 +37,7 @@ def _getkey(keystr):
             .replace("-", "").replace("_", "").replace("/", ""))
 
 
-def _readrawdic(filename):
+def _readrawdic(filename, read_err=None):
     '''
     Reads JCAMP-DX file to dictionary, from which actual
     data is parsed later. Dictionary contains each data
@@ -46,7 +46,7 @@ def _readrawdic(filename):
 
     diclist = []  # for separating multiple data sections (multiple ##END tags)
     dic = {"_comments": []}  # create empty dictionary
-    filein = open(filename, 'r')
+    filein = open(filename, 'r', errors=read_err)
 
     currentkey = None
     currentvaluestrings = []
@@ -199,6 +199,8 @@ def _detect_format(dataline):
     firstvalue_re = re.compile(
         r"(\s)*([+-]?\d+\.?\d*|[+-]?\.\d+)([eE][+-]?\d+)?(\s)*")
 
+    xy_re = re.compile('^[0-9\.]+, [0-9\.]+')
+
     index = firstvalue_re.match(dataline).end()
     if index is None:
         return -1
@@ -213,6 +215,10 @@ def _detect_format(dataline):
         return 1
     if firstchar in _DUP_DIGITS:
         return 1
+
+    if re.search(xy_re, dataline):
+        return 2
+
     return 0
 
 
@@ -395,10 +401,33 @@ def _parse_pseudo(datalines):
     return data
 
 
+def _parse_xy_xy(datalines):
+    pts = []
+    len_group_data = 0
+    for dataline in datalines:
+        if not dataline:
+            continue
+        xy_re = re.compile('[^ ][0-9\.]+, [0-9\.]+')
+        group_data = re.findall(xy_re, dataline)
+        len_group_data = len(group_data)
+        for data in group_data:
+            x, y = data.split(', ')
+            pts.append([float(x), float(y)])
+
+    if len_group_data > 1:
+      return [pts]
+    else:
+      return pts
+
+
 def _parse_data(datastring):
     '''
     Creates numpy array from datalines
     '''
+    probe_data = datastring[80:320]
+    if ',' in probe_data and not('.' in probe_data): # fix comma as decimal points
+        datastring = datastring.replace(',', '.')
+
     datalines = datastring.split("\n")
     headerline = datalines[0]
 
@@ -412,6 +441,8 @@ def _parse_data(datastring):
         data = _parse_pseudo(datalines)
     elif mode == 0:
         data = _parse_affn_pac(datalines)
+    elif mode == 2:
+        data = _parse_xy_xy(datalines)
     else:
         return None
     if data is None:
@@ -461,7 +492,7 @@ def find_yfactors(dic):
     return (factor_r, factor_i)
 
 
-def _getdataarray(dic):
+def _getdataarray(dic, show_all_data=False):
     '''
     Main function for data array parsing, input is the
     raw dictionary from _readrawdic
@@ -491,19 +522,23 @@ def _getdataarray(dic):
                     idatalist.append(data)
                 else:
                     rdatalist.append(data)
-            if len(rdatalist) > 1:
-                warn("NTUPLES: multiple real arrays, returning first one only")
-            if len(idatalist) > 1:
-                warn("NTUPLES: multiple imaginary arrays, \
-                     returning first one only")
-            if rdatalist:
-                if idatalist:
-                    data = [rdatalist[0], idatalist[0]]
-                else:
-                    data = rdatalist[0]
+
+            if show_all_data:
+                data = { 'real': rdatalist, 'imaginary': idatalist }
             else:
-                if idatalist:
-                    data = [None, idatalist[0]]
+                if len(rdatalist) > 1:
+                    warn("NTUPLES: multiple real arrays, returning first one only")
+                if len(idatalist) > 1:
+                    warn("NTUPLES: multiple imaginary arrays, \
+                         returning first one only")
+                if rdatalist:
+                    if idatalist:
+                        data = [rdatalist[0], idatalist[0]]
+                    else:
+                        data = rdatalist[0]
+                else:
+                    if idatalist:
+                        data = [None, idatalist[0]]
 
     if data is None:  # XYDATA
         try:
@@ -518,14 +553,27 @@ def _getdataarray(dic):
         except KeyError:
             warn("XYDATA not found ")
 
-    if data is None:
-        return None
+    if data is None:  # PEAK TABLE
+        try:
+            valuelist = dic["PEAKTABLE"]
+            if len(valuelist) == 1:
+                data, datatype = _parse_data(valuelist[0])
+            else:
+                warn("Multiple PEAKTABLE arrays in JCAMP-DX file, \
+                     returning first one only")
+        except KeyError:
+            warn("PEAKTABLE not found ")
 
     # apply YFACTOR to data if available
     if is_ntuples:
         yfactor_r, yfactor_i = find_yfactors(dic)
         if yfactor_r is None or yfactor_r is None:
             warn("NTUPLES: YFACTORs not applied, parsing failed")
+        elif show_all_data:
+            for i, _ in enumerate(data['real']):
+                data['real'][i] = data['real'][i] * yfactor_r
+            for i, _ in enumerate(data['imaginary']):
+                data['imaginary'][i] = data['imaginary'][i] * yfactor_i
         else:
             data[0] = data[0] * yfactor_r
             data[1] = data[1] * yfactor_i
@@ -541,7 +589,7 @@ def _getdataarray(dic):
     return data
 
 
-def read(filename):
+def read(filename, show_all_data=False, read_err=None):
     """
     Read JCAMP-DX file
 
@@ -567,13 +615,24 @@ def read(filename):
     # first read everything (including data array) to "raw" dictionary,
     # in which data values are read as raw strings including whitespace
     # and newlines
-    dic = _readrawdic(filename)
+    dic = _readrawdic(filename, read_err)
 
     # select the relevant data section.
     # first try to parse NMRSPECTRUM sections in order,
     # and go with first that has proper data:
     data = None
     correctdic = None
+
+    # find and parse NMR data array from raw dic
+    data = _getdataarray(dic, show_all_data)
+
+    # remove data tables from dic
+    try:
+        dic['XYDATA_OLD'] = dic["XYDATA"]
+        del dic["XYDATA"]
+    except KeyError:
+        pass
+
     try:
         subdiclist = dic["_datatype_NMRSPECTRUM"]
         for subdic in subdiclist:
