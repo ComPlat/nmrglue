@@ -570,6 +570,19 @@ def _getdataarray(dic, show_all_data=False):
         except KeyError:
             warn("PEAKTABLE not found ")
 
+    if data is None:  # XYPOINTS
+        try:
+            valuelist = dic["XYPOINTS"]
+            if len(valuelist) > 1:
+                warn("Multiple XYPOINTS arrays in JCAMP-DX file, \
+                     returning first one only")
+            parseret = _parse_data(valuelist[0])
+            if parseret is None:
+                return None
+            data, datatype = parseret
+        except KeyError:
+            warn("XYPOINTS not found ")
+
     # apply YFACTOR to data if available
     if is_ntuples:
         yfactor_r, yfactor_i = find_yfactors(dic)
@@ -632,17 +645,10 @@ def read(filename, show_all_data=False, read_err=None):
     # find and parse NMR data array from raw dic
     data = _getdataarray(dic, show_all_data)
 
-    # remove data tables from dic
-    try:
-        dic['XYDATA_OLD'] = dic["XYDATA"]
-        del dic["XYDATA"]
-    except KeyError:
-        pass
-
     try:
         subdiclist = dic["_datatype_NMRSPECTRUM"]
         for subdic in subdiclist:
-            data = _getdataarray(subdic)
+            data = _getdataarray(subdic, show_all_data)
             if data is not None:
                 correctdic = subdic
                 break
@@ -654,7 +660,7 @@ def read(filename, show_all_data=False, read_err=None):
         try:
             subdiclist = dic["_datatype_NMRFID"]
             for subdic in subdiclist:
-                data = _getdataarray(subdic)
+                data = _getdataarray(subdic, show_all_data)
                 if data is not None:
                     correctdic = subdic
                     break
@@ -667,7 +673,21 @@ def read(filename, show_all_data=False, read_err=None):
         try:
             subdiclist = dic["_datatype_NA"]
             for subdic in subdiclist:
-                data = _getdataarray(subdic)
+                data = _getdataarray(subdic, show_all_data)
+                if data is not None:
+                    correctdic = subdic
+                    break
+        except KeyError:
+            pass
+
+    if data is None:
+        # finally try all non-typed data sections, since
+        # sometimes DATATYPE label may be missing
+        try:
+            dic_key = list(dic.keys())[0]
+            subdiclist = dic[dic_key]
+            for subdic in subdiclist:
+                data = _getdataarray(subdic, show_all_data)
                 if data is not None:
                     correctdic = subdic
                     break
@@ -688,6 +708,7 @@ def read(filename, show_all_data=False, read_err=None):
         # clean correct dic:
         # remove data tables
         try:
+            correctdic['XYDATA_OLD'] = correctdic["XYDATA"]
             del correctdic["XYDATA"]
         except KeyError:
             pass
