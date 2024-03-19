@@ -655,7 +655,7 @@ def read(filename, show_all_data=False, read_err=None):
     # first read everything (including data array) to "raw" dictionary,
     # in which data values are read as raw strings including whitespace
     # and newlines
-    dic = _readrawdic(filename, read_err)
+    dic = _readrawdic(filename)
 
     # select the relevant data section.
     # first try to parse NMRSPECTRUM sections in order,
