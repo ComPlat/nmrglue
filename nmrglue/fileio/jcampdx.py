@@ -193,6 +193,10 @@ def _readrawdic(filename):
             # no datatype in this section, use dummy
             currdatatype = "NA"
 
+        # support for chemspectra
+        if currdatatype not in ["NMRSPECTRUM", "NMRFID", "NA"]:
+            currdatatype = "NA"
+
         # push to result dict
         key = "_datatype_"+currdatatype
         try:
