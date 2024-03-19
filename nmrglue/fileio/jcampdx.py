@@ -586,7 +586,7 @@ def getdataarray(dic, show_all_data=False):
 
     if data is None:  # XYDATA
         try:
-            valuelist = dic["XYDATA"]
+            valuelist = valuelist = dic["XYDATA"] if "XYDATA" in dic.keys() else dic["XYPOINTS"]
             if len(valuelist) > 1:
                 warn("Multiple XYDATA arrays in JCAMP-DX file, \
                      returning first one only")
@@ -695,7 +695,7 @@ def read(filename, show_all_data=False, read_err=None):
         try:
             subdiclist = dic["_datatype_NA"]
             for subdic in subdiclist:
-                data = getdataarray(subdic)
+                data = getdataarray(subdic, show_all_data)
                 if data is not None:
                     correctdic = subdic
                     break
