@@ -4,7 +4,6 @@ import warnings
 
 from numpy import array, take, eye, triu, transpose, dot
 from numpy import empty_like, sqrt, cos, sin, arcsin
-from scipy.optimize.minpack import _check_func
 from scipy.optimize import _minpack, leastsq
 
 
@@ -250,7 +249,7 @@ def leastsqbound(func, x0, args=(), bounds=None, Dfun=None, full_output=0,
         raise ValueError('length of x0 != length of bounds')
     if not isinstance(args, tuple):
         args = (args,)
-    m = _check_func('leastsq', 'func', func, x0, args, n)[0][0]
+    m = _minpack._check_func('leastsq', 'func', func, x0, args, n)[0][0]
     if n > m:
         raise TypeError('Improper input: N=%s must not exceed M=%s' % (n, m))
 
@@ -266,9 +265,9 @@ def leastsqbound(func, x0, args=(), bounds=None, Dfun=None, full_output=0,
                                  gtol, maxfev, epsfcn, factor, diag)
     else:
         if col_deriv:
-            _check_func('leastsq', 'Dfun', Dfun, x0, args, n, (n, m))
+            _minpack._check_func('leastsq', 'Dfun', Dfun, x0, args, n, (n, m))
         else:
-            _check_func('leastsq', 'Dfun', Dfun, x0, args, n, (m, n))
+            _minpack._check_func('leastsq', 'Dfun', Dfun, x0, args, n, (m, n))
         if (maxfev == 0):
             maxfev = 100 * (n + 1)
 
