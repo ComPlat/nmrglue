@@ -523,6 +523,17 @@ def _getdataarray(dic, show_all_data=False):
         except KeyError:
             warn("PEAKTABLE not found ")
 
+    if data is None:  # XYPOINTS
+        try:
+            valuelist = dic["XYPOINTS"]
+            if len(valuelist) == 1:
+                data, datatype = _parse_data(valuelist[0])
+            else:
+                warn("Multiple XYPOINTS arrays in JCAMP-DX file, \
+                     returning first one only")
+        except KeyError:
+            warn("XYPOINTS not found ")
+
     # apply YFACTOR to data if available
     if is_ntuples:
         yfactor_r, yfactor_i = find_yfactors(dic)
