@@ -44,7 +44,7 @@ def _readrawdic(filename, read_err=None):
     '''
 
     dic = {"_comments": []}  # create empty dictionary
-    filein = open(filename, 'r', errors=read_err)
+    filein = open(filename, 'r' , encoding='utf-8', errors=read_err)
 
     currentkey = None
     currentvaluestrings = []
