@@ -471,6 +471,8 @@ def _parse_data(datastring):
         datatype = "I"
 
     datalines = datalines[1:]  # get rid of the header line (e.g. (X++(Y..Y)))
+    if not datalines:
+        return None  # a table declared with no values, e.g. an empty PEAKTABLE
     mode = _detect_format(datalines[0])
     if mode == 1:
         data = _parse_pseudo(datalines)

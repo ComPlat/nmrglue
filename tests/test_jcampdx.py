@@ -351,3 +351,17 @@ def test_jcampdx_xy_pairs_indented_and_signed():
             assert np.allclose(data[0], expected)
         finally:
             os.remove(path)
+
+
+def test_jcampdx_empty_table():
+    '''JCAMP-DX read: a table with no values gives no data, not an error'''
+    fd, path = tempfile.mkstemp()
+    try:
+        with os.fdopen(fd, 'w') as f:
+            f.write("##TITLE=Test\n##JCAMPDX=5.0\n"
+                    "##DATATYPE=NMR SPECTRUM\n##DATA CLASS=PEAKTABLE\n"
+                    "##NPOINTS=0\n##PEAKTABLE=(XY..XY)\n##END=\n")
+        dic, data = ng.jcampdx.read(path)
+        assert data is None
+    finally:
+        os.remove(path)
