@@ -365,3 +365,17 @@ def test_jcampdx_empty_table():
         assert data is None
     finally:
         os.remove(path)
+
+
+def test_jcampdx_xy_pairs_factors():
+    '''JCAMP-DX read: XFACTOR scales X and YFACTOR scales Y of (XY..XY) pairs'''
+    fd, path = tempfile.mkstemp()
+    try:
+        with os.fdopen(fd, 'w') as f:
+            f.write("##TITLE=Test\n##JCAMPDX=5.0\n##DATATYPE=NMR SPECTRUM\n"
+                    "##XFACTOR=10\n##YFACTOR=2\n"
+                    "##XYDATA=(XY..XY)\n1, 5\n2, 6\n##END=\n")
+        dic, data = ng.jcampdx.read(path)
+        assert np.allclose(data[0], [[10.0, 10.0], [20.0, 12.0]])
+    finally:
+        os.remove(path)

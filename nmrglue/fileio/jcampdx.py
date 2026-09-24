@@ -624,6 +624,17 @@ def getdataarray(dic):
         else:
             data[0] = data[0] * yfactor_r
             data[1] = data[1] * yfactor_i
+    elif data.ndim == 3 and data.shape[-1] == 2:
+        # (XY..XY) pairs carry their own X values, which XFACTOR scales;
+        # YFACTOR scales only the Y column
+        for column, factorkey in ((0, "XFACTOR"), (1, "YFACTOR")):
+            try:
+                factor = float(dic[factorkey][0])
+                data[..., column] = data[..., column] * factor
+            except (ValueError, IndexError):
+                warn(f"{factorkey} not applied, parsing failed")
+            except KeyError:
+                pass
     else:
         try:
             yfactor = float(dic["YFACTOR"][0])
