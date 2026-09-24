@@ -465,3 +465,145 @@ def test_jcampdx_prefers_1d_over_nd():
         assert "_datatype_NDNMRSPECTRUM" in dic
     finally:
         os.remove(path)
+
+
+def test_jcampdx_parsing_improvements():
+    # 1. Test coordinate format (XY..XY)
+    content_xy = (
+        "##TITLE=Test XY\n"
+        "##JCAMPDX=5.0\n"
+        "##DATATYPE=NMR SPECTRUM\n"
+        "##DATA CLASS=XYDATA\n"
+        "##XYDATA=(X..XY)\n"
+        "1.0, 10.0; 2.0, 20.0; 3.0, 30.0\n"
+        "##END=\n"
+    )
+
+    # 2. Test PEAKTABLE and XYPOINTS
+    content_peakt = (
+        "##TITLE=Test PEAKTABLE\n"
+        "##JCAMPDX=5.0\n"
+        "##DATATYPE=NMR SPECTRUM\n"
+        "##PEAKTABLE=(XY..XY)\n"
+        "1.0, 100.0\n"
+        "2.0, 200.0\n"
+        "##END=\n"
+    )
+
+    content_xypoints = (
+        "##TITLE=Test XYPOINTS\n"
+        "##JCAMPDX=5.0\n"
+        "##DATATYPE=NMR SPECTRUM\n"
+        "##XYPOINTS=(XY..XY)\n"
+        "1.5, 150.0\n"
+        "2.5, 250.0\n"
+        "##END=\n"
+    )
+
+    # 3. Test comma decimal separator
+    content_comma = (
+        "##TITLE=Test Comma\n"
+        "##JCAMPDX=5.0\n"
+        "##DATATYPE=NMR SPECTRUM\n"
+        "##DATA CLASS=XYDATA\n"
+        "##XYDATA=(X..XY)\n"
+        "1,0, 10,5; 2,0, 20,5\n"
+        "##END=\n"
+    )
+
+    # 4. Test scientific notation in XY pairs
+    content_sci = (
+        "##TITLE=Test Scientific\n"
+        "##JCAMPDX=5.0\n"
+        "##DATATYPE=NMR SPECTRUM\n"
+        "##XYPOINTS=(XY..XY)\n"
+        "1.5e3, 2.0E-1\n"
+        "##END=\n"
+    )
+
+    fd, path = tempfile.mkstemp()
+    try:
+        # Test XY coordinate parsing
+        with os.fdopen(fd, 'w') as f:
+            f.write(content_xy)
+        dic, data = ng.jcampdx.read(path)
+        assert data.shape == (1, 3, 2)
+        assert np.allclose(data[0], [[1.0, 10.0], [2.0, 20.0], [3.0, 30.0]])
+
+        # Test PEAKTABLE
+        fd2, path2 = tempfile.mkstemp()
+        with os.fdopen(fd2, 'w') as f:
+            f.write(content_peakt)
+        dic, data = ng.jcampdx.read(path2)
+        assert data.shape == (1, 2, 2)
+        assert np.allclose(data[0], [[1.0, 100.0], [2.0, 200.0]])
+        os.remove(path2)
+
+        # Test XYPOINTS
+        fd3, path3 = tempfile.mkstemp()
+        with os.fdopen(fd3, 'w') as f:
+            f.write(content_xypoints)
+        dic, data = ng.jcampdx.read(path3)
+        assert data.shape == (1, 2, 2)
+        assert np.allclose(data[0], [[1.5, 150.0], [2.5, 250.0]])
+        os.remove(path3)
+
+        # Test comma decimal parsing
+        fd4, path4 = tempfile.mkstemp()
+        with os.fdopen(fd4, 'w') as f:
+            f.write(content_comma)
+        dic, data = ng.jcampdx.read(path4)
+        assert data.shape == (1, 2, 2)
+        assert np.allclose(data[0], [[1.0, 10.5], [2.0, 20.5]])
+        os.remove(path4)
+
+        # Test scientific notation
+        fd5, path5 = tempfile.mkstemp()
+        with os.fdopen(fd5, 'w') as f:
+            f.write(content_sci)
+        dic, data = ng.jcampdx.read(path5)
+        assert data.shape == (1, 1, 2)
+        assert np.allclose(data[0], [[1500.0, 0.2]])
+        os.remove(path5)
+    finally:
+        os.remove(path)
+
+
+def test_jcampdx_xy_pairs_indented_and_signed():
+    '''JCAMP-DX read: (XY..XY) pairs with leading whitespace or signs'''
+    cases = [
+        # indented, one pair per line, as some MS writers emit
+        (" 199.9, 1097735\n 199.95, 1097736\n",
+         [[199.9, 1097735.0], [199.95, 1097736.0]]),
+        # indented, several pairs per line
+        (" 27, 1248 28, 2067\n 29, 5538\n",
+         [[27.0, 1248.0], [28.0, 2067.0], [29.0, 5538.0]]),
+        # a signed first value, as for cyclic voltammetry potentials
+        ("-1.5, 20\n-1.4, -21\n", [[-1.5, 20.0], [-1.4, -21.0]]),
+    ]
+    for lines, expected in cases:
+        fd, path = tempfile.mkstemp()
+        try:
+            with os.fdopen(fd, 'w') as f:
+                f.write("##TITLE=Test\n##JCAMPDX=5.0\n"
+                        "##DATATYPE=NMR SPECTRUM\n##DATA CLASS=XYDATA\n"
+                        "##XYDATA=(XY..XY)\n" + lines + "##END=\n")
+            dic, data = ng.jcampdx.read(path)
+            assert data.shape == (1, len(expected), 2)
+            assert np.allclose(data[0], expected)
+        finally:
+            os.remove(path)
+
+
+def test_jcampdx_empty_table():
+    '''JCAMP-DX read: a table with no values gives no data, not an error'''
+    fd, path = tempfile.mkstemp()
+    try:
+        with os.fdopen(fd, 'w') as f:
+            f.write("##TITLE=Test\n##JCAMPDX=5.0\n"
+                    "##DATATYPE=NMR SPECTRUM\n##DATA CLASS=PEAKTABLE\n"
+                    "##NPOINTS=0\n##PEAKTABLE=(XY..XY)\n##END=\n")
+        dic, data = ng.jcampdx.read(path)
+        assert data is None
+    finally:
+        os.remove(path)

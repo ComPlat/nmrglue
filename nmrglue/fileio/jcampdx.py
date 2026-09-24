@@ -231,8 +231,15 @@ def _detect_format(dataline):
     Detects and returns digit format:
     0  Normal
     1  Pseudodigits
+    2  Coordinate list (XY..XY)
     -1 Error
     '''
+    # check for coordinate list first
+    # values may be signed, and writers commonly indent pair lines
+    xy_re = re.compile(r'^\s*[+-]?[0-9.]+(?:[eE][+-]?\d+)?\s*,\s*'
+                       r'[+-]?[0-9.]+(?:[eE][+-]?\d+)?')
+    if re.search(xy_re, dataline):
+        return 2
 
     # regexp to find & skip the first value of line, that never begins
     # with a pseudodigit in any format
@@ -452,10 +459,33 @@ def _parse_variable_list(headerline):
     return match.group(1), match.group(2)
 
 
+def _parse_xy_xy(datalines):
+    '''
+    Parses datalines in coordinate list format (XY..XY),
+    where each line contains comma-separated X,Y pairs.
+    '''
+    pts = []
+    xy_pair_re = re.compile(
+        r"([+-]?\d+\.?\d*(?:[eE][+-]?\d+)?)\s*,\s*"
+        r"([+-]?\d+\.?\d*(?:[eE][+-]?\d+)?)"
+    )
+    for dataline in datalines:
+        for match in xy_pair_re.finditer(dataline):
+            x = float(match.group(1))
+            y = float(match.group(2))
+            pts.append([x, y])
+    return [pts]
+
+
 def _parse_data(datastring):
     '''
     Creates numpy array from datalines
     '''
+    header_end = datastring.find('\n')
+    data_part = datastring[header_end:] if header_end != -1 else datastring
+    if ',' in data_part and '.' not in data_part:
+        datastring = re.sub(r'(\d),(\d)', r'\1.\2', datastring)
+
     datalines = datastring.split("\n")
     headerline = datalines[0]
 
@@ -466,11 +496,18 @@ def _parse_data(datastring):
         datatype = "R"
 
     datalines = datalines[1:]  # get rid of the header line (e.g. (X++(Y..Y)))
+    if not datalines:
+        return None  # a table declared with no values, e.g. an empty PEAKTABLE
     mode = _detect_format(datalines[0])
     if mode == 1:
         data = _parse_pseudo(datalines)
     elif mode == 0:
         data = _parse_affn_pac(datalines)
+    elif mode == 2:
+        if headerline == '(X++(Y..Y))':
+            data = _parse_affn_pac(datalines)
+        else:
+            data = _parse_xy_xy(datalines)
     else:
         return None
     if data is None:
@@ -592,6 +629,30 @@ def getdataarray(dic, show_all_data=False):
             data, datatype = parseret
         except KeyError:
             warn("XYDATA not found ")
+
+    if data is None:  # PEAKTABLE
+        try:
+            valuelist = dic["PEAKTABLE"]
+            if len(valuelist) > 1:
+                warn("Multiple PEAKTABLE arrays in JCAMP-DX file, "
+                     "returning first one only")
+            parseret = _parse_data(valuelist[0])
+            if parseret is not None:
+                data, datatype = parseret
+        except KeyError:
+            pass
+
+    if data is None:  # XYPOINTS
+        try:
+            valuelist = dic["XYPOINTS"]
+            if len(valuelist) > 1:
+                warn("Multiple XYPOINTS arrays in JCAMP-DX file, "
+                     "returning first one only")
+            parseret = _parse_data(valuelist[0])
+            if parseret is not None:
+                data, datatype = parseret
+        except KeyError:
+            pass
 
     if data is None:
         return None
