@@ -20,11 +20,11 @@ in the Python ecosystem.
 +------------+------------+---------------------------------------+
 | Package    | Version    | Details                               |
 +============+============+=======================================+
-| Python     | 3.11.0+    |                                       |
+| Python     | 3.10.0+    |                                       |
 +------------+------------+---------------------------------------+
-| Numpy      | 1.23.2+    | Required for all basic data types     |
+| Numpy      | 1.21.2+    | Required for all basic data types     |
 +------------+------------+---------------------------------------+
-| Scipy      | 1.9.2+     | Required for processing functions     |
+| Scipy      | 1.7.2+     | Required for processing functions     |
 +------------+------------+---------------------------------------+
 | Matplotlib | 2.2.3+     | Optional, required for some functions |
 |            |            | such as interactive phase correction  |
