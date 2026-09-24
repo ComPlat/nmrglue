@@ -325,3 +325,29 @@ def test_jcampdx_parsing_improvements():
         os.remove(path5)
     finally:
         os.remove(path)
+
+
+def test_jcampdx_xy_pairs_indented_and_signed():
+    '''JCAMP-DX read: (XY..XY) pairs with leading whitespace or signs'''
+    cases = [
+        # indented, one pair per line, as some MS writers emit
+        (" 199.9, 1097735\n 199.95, 1097736\n",
+         [[199.9, 1097735.0], [199.95, 1097736.0]]),
+        # indented, several pairs per line
+        (" 27, 1248 28, 2067\n 29, 5538\n",
+         [[27.0, 1248.0], [28.0, 2067.0], [29.0, 5538.0]]),
+        # a signed first value, as for cyclic voltammetry potentials
+        ("-1.5, 20\n-1.4, -21\n", [[-1.5, 20.0], [-1.4, -21.0]]),
+    ]
+    for lines, expected in cases:
+        fd, path = tempfile.mkstemp()
+        try:
+            with os.fdopen(fd, 'w') as f:
+                f.write("##TITLE=Test\n##JCAMPDX=5.0\n"
+                        "##DATATYPE=NMR SPECTRUM\n##DATA CLASS=XYDATA\n"
+                        "##XYDATA=(XY..XY)\n" + lines + "##END=\n")
+            dic, data = ng.jcampdx.read(path)
+            assert data.shape == (1, len(expected), 2)
+            assert np.allclose(data[0], expected)
+        finally:
+            os.remove(path)

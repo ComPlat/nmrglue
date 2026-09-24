@@ -230,7 +230,9 @@ def _detect_format(dataline):
     -1 Error
     '''
     # check for coordinate list first
-    xy_re = re.compile(r'^[0-9.]+(?:[eE][+-]?\d+)?,\s?[0-9.]+(?:[eE][+-]?\d+)?')
+    # values may be signed, and writers commonly indent pair lines
+    xy_re = re.compile(r'^\s*[+-]?[0-9.]+(?:[eE][+-]?\d+)?\s*,\s*'
+                       r'[+-]?[0-9.]+(?:[eE][+-]?\d+)?')
     if re.search(xy_re, dataline):
         return 2
 
