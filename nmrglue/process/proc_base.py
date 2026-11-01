@@ -93,6 +93,18 @@ def gm(data, g1=0.0, g2=0.0, g3=0.0, inv=False, rev=False):
     ndata : ndarray
         Array of NMR data with apodization applied.
 
+    Notes
+    -----
+    The factor ``0.6`` in the Gaussian term matches the NMRPipe GM function.
+    It approximates
+
+    .. math::
+        \\frac{1}{2\\sqrt{\\ln(2)}} \\approx 0.600561,
+
+    the coefficient for which the Fourier transform of the Gaussian
+    contribution has a full width at half maximum of ``g2``. The rounded
+    value is retained for numerical compatibility with NMRPipe.
+
     """
     size = data.shape[-1]
     e = pi * np.arange(size) * g1
@@ -324,7 +336,7 @@ def tri(data, loc="auto", lHi=0.0, rHi=0.0, inv=False, rev=False):
 ###################
 
 
-def rs(data, pts=0.0):
+def rs(data, pts=0):
     """
     Right shift and zero fill.
 
@@ -345,12 +357,13 @@ def rs(data, pts=0.0):
     roll : shift without zero filling.
 
     """
+
     data = np.roll(data, int(pts), axis=-1)
     data[..., :int(pts)] = 0
     return data
 
 
-def ls(data, pts=0.0):
+def ls(data, pts=0):
     """
     Left shift and fill with zero
 
@@ -371,12 +384,14 @@ def ls(data, pts=0.0):
     roll : shift without zero filling.
 
     """
+    if int(pts) == 0:
+        return data
     data = np.roll(data, -int(pts), axis=-1)
     data[..., -int(pts):] = 0
     return data
 
 
-def cs(data, pts=0.0, neg=False):
+def cs(data, pts=0, neg=False):
     """
     Circular shift
 
@@ -399,7 +414,7 @@ def cs(data, pts=0.0, neg=False):
     return roll(data, pts, neg)
 
 
-def roll(data, pts=0.0, neg=False):
+def roll(data, pts=0, neg=False):
     """
     Roll axis
 
@@ -2644,7 +2659,7 @@ def zd_gaussian(data, wide=1.0, x0=0.0, slope=1.0, g=1):
 
     """
     tln2 = np.sqrt(2 * np.log(2))
-    window = 1 - scipy.signal.gaussian(2 * wide + 1, g / tln2)
+    window = 1 - scipy.signal.windows.gaussian(2 * wide + 1, g / tln2)
     return zd(data, window, x0=x0, slope=slope)
 
 
